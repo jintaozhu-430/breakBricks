@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            outline: none;
+            background: url(5c078ca14c4a9.jpg);
+        }
+
+        canvas {
+            background-color: #c9c;
+            display: block;
+            margin: 0 auto;
+            padding: 20px auto;
+            border: 1px solid #8f63cc;
+            margin-top: 10px;
+        }
+
+        .title {
+            color: #fff;
+            text-align: center;
+            margin-top: 20px;
+            font-size: 30px;
+            background: #8f63cc;
+            width: 480px;
+            margin: 0 auto;
+            margin-top: 20px;
+        }
+
+        .start {
+            color: #fff;
+            text-align: center;
+            margin-top: 30px;
+            font-size: 24px;
+            /* background: #FBF; */
+            width: 100px;
+            margin: 0px auto;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+
+        strong {
+            color: #ddd;
+            text-align: center;
+            font-size: 24px;
+            width: 100px;
+            display: block;
+            margin: 0px auto;
+            margin-top: 20px;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div class="title">撞球游戏</div>
+    <canvas id="bricksCanvas" width="480" height="460"></canvas><!-- 砖块盛放容器 -->
+    <div class="start" flage="flage">开始游戏</div>
+    <strong>空格暂停</strong>
+    <script src="jquery.min.js"></script>
+    <script>
+        var canvas = $("#bricksCanvas")[0];
+        var tao = canvas.getContext("2d");//创建画布上的绘图环境
+        var stop_status = true;//停止键是否有效
+        var stop;//决定是否停止
+        var canvas_status = true;//初始未暂停键
+
+        var ballRadius = 10;//直径
+        var ballColor = "#f44280";//球颜色
+
+        var x = canvas.width / 2;
+        var y = canvas.height - 25;
+        //球移动速度
+        var dx = -2;//往左走
+        var dy = -2;//往上走
+        //托盘大小位置
+        var paddleHeight = 15;
+        var paddleWidth = 75;
+        var paddleX = (canvas.width - paddleWidth) / 2;
+        //键盘控制
+        var rightPressed = false;
+        var leftPressed = false;
+        //bricks  砖块   5行6列  
+        var brickRowCount = 5;
+        var brickColumnCount = 6;
+        var brickWidth = 70;
+        var brickHeight = 20;
+        var brickPadding = 6;
+        var brickOffsetTop = 35;//距离上边距离
+        var brickOffsdtLeft = 15;
+
+        var score = 0;
+        var lives = 3;
+
+        //初始化二维数组，存储砖块信息 status:1表示砖块显示 0：表示砖块消失
+        var bricks = [];
+        for (c = 0; c < brickColumnCount; c++) {
+            bricks[c] = [];
+            for (r = 0; r < brickRowCount; r++) {
+                bricks[c][r] = { x: 0, y: 0, status: 1 };
+            }
+        }
+        //画球
+        function drawBall() {
+            tao.beginPath();//在画布上创建一个路径，开始一个新的集合
+            tao.arc(x, y, ballRadius, 0, Math.PI * 2);//创建一个圆形并让他底部居中
+            tao.fillStyle = ballColor;
+            tao.fill();
+            tao.closePath();
+
+        }
+        //托盘
+        function drawPalle() {
+            tao.beginPath();
+            tao.rect(paddleX, canvas.height - paddleHeight, paddleWidth, paddleHeight);//rect专业用来绘制矩形
+            tao.fillStyle = "#FF82AB";
+            tao.fill();
+            tao.closePath();
+        }
+        //砖块
+        function drawBricks() {
+            for (c = 0; c < brickColumnCount; c++) {
+                for (r = 0; r < brickRowCount; r++) {
+                    if (bricks[c][r].status == 1) {
+                        var brickX = (c * (brickWidth + brickPadding)) + brickOffsdtLeft;
+                        var brickY = (r * (brickHeight + brickPadding)) + brickOffsetTop;
+                        bricks[c][r].x = brickX;
+                        bricks[c][r].y = brickY;
+                        tao.beginPath();
+                        tao.rect(brickX, brickY, brickWidth, brickHeight);
+                        tao.fillStyle = "#8f63cc";
+                        tao.fill();
+                        tao.closePath();
+                    }
+                }
+            }
+        }
+
+        //分数
+        function drawScore() {
+            tao.font = "16px Arial";
+            tao.fillStyle = "#fff";
+            tao.fillText("Score:" + score, 15, 20);//x轴y轴位置
+        }
+        //生命值
+        function drawLives() {
+            tao.font = "16px Arial";
+            tao.fillStyle = "#f40";
+            tao.fillText("Lives:" + lives, canvas.width - 70, 20);//x轴y轴位置
+        }
+        //game over
+        function drawGo() {
+            tao.font = "30px Arial";
+            tao.fillStyle = "#f44280";
+            tao.fillText("GAME OVER", 150, 300);//x轴y轴位置
+        }
+
+        //砖块消失 小球碰撞砖块的条件
+        function collisionDetection() {
+            for (c = 0; c < brickColumnCount; c++) {//列
+                for (r = 0; r < brickRowCount; r++) {//行
+                    var b = bricks[c][r];
+                    if (b.status == 1) {
+                        if (x > b.x && x < b.x + brickWidth && y > b.y && y < b.y + brickHeight) {
+                            dy = -dy;//往反方向运动
+                            b.status = 0;//砖块消失
+                            score++;//每消失一个砖块加一分
+                            if (score == brickColumnCount * brickRowCount) {
+                                document.location.reload();//重新加载当前文档
+                                x = canvas.width / 2;
+                                x = canvas.height - 30;
+                                dx = 3;
+                                dy = -3;
+                                paddleX = (canvas.width - paddleWidth) / 2;
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        //让小球动
+        function draw() {
+            tao.clearRect(0, 0, canvas.width, canvas.height);
+            drawBall();
+            drawPalle();
+            drawBricks();
+            drawScore();
+            drawLives();
+            collisionDetection();
+            if (x + dx > canvas.width - ballRadius || x + dx < ballRadius) {
+                dx = -dx;
+            }
+            if (y + dy < ballRadius) {
+                dy = -dy;
+            }
+            else if (y + dy > canvas.height - (ballRadius + paddleHeight)) {
+                if (x > paddleX && x < paddleX + paddleWidth) {
+                    dy = -dy;
+                }
+                else {
+                    lives--;
+                    if (lives == 0) {
+                        drawGo();
+                        $(".start").attr("flage", "flage");
+                        lives = 4;
+                        score = 0;
+                        stop_status = false;
+                        return;//终止
+                    }
+                    else {//重置各个位置
+                        x = canvas.width / 2;
+                        y = canvas.height - 30;
+                        dx = 3;
+                        dy = -3;
+                        paddleX = (canvas.width - paddleWidth) / 2;
+
+                    }
+                }
+            }
+            if (rightPressed && paddleX < canvas.width - paddleWidth) {
+                paddleX += 5;
+            }
+            else if (leftPressed && paddleX > 0) {
+                paddleX -= 5;
+            }
+            x += dx;
+            y += dy;
+            stop = requestAnimationFrame(draw);
+        }
+        //触发鼠标指针跟随者移动
+        function mouseMoveHandler(e) {
+            var relativeX = e.clientX - canvas.offsetLeft;
+            if (relativeX > 0 && relativeX < canvas.width) {
+                paddleX = relativeX - paddleWidth / 2;
+            }
+        }
+        //把键盘绑定移动
+        function keyDownHandler(e) {
+            if (e.keyCode == 39) {//39是右侧箭头
+                rightPressed = true;
+            }
+            else if (e.keyCode == 37) {
+                leftPressed = true;
+            }
+            else if (e.keyCode == 32) {//空格
+                if (stop_status) {
+                    window.cancelAnimationFrame(stop);//取消动画的函数
+                    canvas_status = false;
+                    stop_status = false;
+                }
+                else {
+                    stop = window.requestAnimationFrame(draw);
+                    canvas_status = true;
+                    stop_status = true;
+                }
+            }
+        }
+        function keyUpHandler(e) {
+            if (e.keyCode == 39) {
+                rightPressed = false;
+            }
+            else if (e.keyCode == 37) {
+                leftPressed = false;
+            }
+
+        }
+    
+        $(function () {
+            drawBall();
+            drawPalle();
+            drawBricks();
+            drawScore();
+            drawLives();
+            $(".start").click(function () {
+                stop_status = true;
+                if ($(".start").attr("flage") == "flage") {
+                    for (c = 0; c < brickColumnCount; c++) {
+                        for (r = 0; r < brickRowCount; r++) {
+                            //判断砖块是否显示
+                            bricks[c][r].status = 1;
+                        }
+                    }//操作显示
+                    $(".start").attr("flage", "");
+                    draw();
+                    //加一个事件监听的方法和鼠标移动的方法
+                    document.addEventListener("mousemove", mouseMoveHandler, false);
+                    document.addEventListener("keydown", keyDownHandler, false);
+                    document.addEventListener("keyup", keyUpHandler, false);
+                }
+            })
+
+        })
+
+    </script>
+</body>
+
+</html>
